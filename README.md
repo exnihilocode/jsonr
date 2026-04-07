@@ -9,7 +9,7 @@
 ## Install
 
 ```bash
-go get <module/path>
+go get github.com/exnihilocode/jsonr
 ```
 
 Use the import path from your published `go.mod` (for example `github.com/you/jsonr`). This repository currently declares `module jsonr`; replace `<module/path>` accordingly when you release.

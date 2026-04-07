@@ -1,4 +1,4 @@
-module jsonr
+module github.com/exnihilocode/jsonr
 
 go 1.26.1
 
