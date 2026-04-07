@@ -2,6 +2,10 @@
 
 **jsonr** unmarshals JSON into Go values using dot-notation paths on struct tags, while streaming tokens from [`encoding/json/jsontext`](https://pkg.go.dev/encoding/json/jsontext). You describe only the fields you need; everything else can be skipped without loading the whole document into memory.
 
+## Status
+
+jsonr is in active development. Public APIs and behavior may change without notice; there is no commitment to stability or backward compatibility yet. The software is provided as-is, without warranties or guarantees — use it only after your own evaluation.
+
 ## Requirements
 
 - Go 1.26.1 or later (see `go.mod`)
@@ -141,6 +145,10 @@ _ = rows
 - **Not supported:** Slice-range syntax in paths; multi-field tags into `[]T` / `[N]T` (use `map[string]T` for multi-key object picks).
 
 For more tag examples, see [docs/path_examples.md](docs/path_examples.md). Some examples there describe roadmap or alternate shapes; bracket syntax is **keys only**, and multi-field tags require a **map** destination in the current implementation.
+
+## License
+
+This project is released under the [MIT License](LICENSE.md).
 
 ## Documentation
 
