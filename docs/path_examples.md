@@ -1,26 +1,46 @@
-# Tags Examples
+# jsonr path examples
 
-- `jsonr:"address.street"`
-    - resolves the `street` field of the `address` object field from the top level
-- `jsonr:"addresses.*.street"`
-    - if `addresses` were an array of objects, this would resolve the `street` field from each address object in the `addresses` array
-    - assuming the `street` field is a string this would result in the assignment to a struct field representing a `[]string` or similar compatible type
-- `jsonr:"addresses.0.street"`
-    - this would resolve `street` field from the 1st (zero based index) address object from the `addresses` array
-- `jsonr:"address.[street,city,state]"`
-    - resolves only the `street`, `city`, and `state` fields from the `address` object field
-    - assuming the `street`, `city`, and `state` field values are of type `string` then the result in the assignment to a struct field representing
-        - a map[string]string or similar compatible map value type ex. `map[string]string{ "street": "123 Main St", "city": "Anytown", "state": "CA" }`
-        - a []string ex. `[]string{ "123 Main St", "Anytown", "CA"}`
-- `jsonr:"addresses.[0:5].coordinates.[latitude,longitude]`
-    - resolves the first 5 items of the addresses array
-    - assuming the `latitude` and `longitude` fields are of type float64 the the assignment to a struct field representing:
-        - a `[]float64` or `[2]float64` ex. `[]float64{ 37.774929, -122.419416}`
-        - a `map[string]float64` ex. `map[string]float64{ "latitude": 37.774929, "longitude": -122.419416 }`
+This file expands on the tag forms summarized in the [README](../README.md) (“Path syntax”). Behavior described here matches the current implementation.
 
-## Brief Example
+## How paths are built
 
-In this example there is a json object representing an **Employee** that includes various details, but in this scenario we are only interested in the Employee's name, and the coordinates.
+- Segments are separated by **`.`** (dot). Dots **inside** a bracket segment `[...]` do **not** split the path (for example `y.[a,b]` is two segments: `y` and `[a,b]`).
+- Empty paths, empty segments, or empty names inside a bracket list are invalid.
+
+## Literal keys and array indices
+
+- `jsonr:"address.street"` — Selects the `street` member of the top-level `address` object.
+- Under a JSON **object**, each segment matches the member **name** (including names that look like numbers, e.g. `"0"` or `"123"`, when those are the actual keys).
+- Under a JSON **array**, use a non‑negative decimal index segment (`0`, `1`, …) for the element position.
+
+Example with an array:
+
+- `jsonr:"addresses.0.street"` — `street` from the first element (index `0`) of the `addresses` array.
+
+## Wildcard (`*`)
+
+The `*` segment walks **every** element of a JSON **array** or **every** member of a JSON **object** at that position; the following segments apply under each value.
+
+- `jsonr:"addresses.*.street"` — Collects `street` from each object in an `addresses` **array**, or from each value if `addresses` is an **object** whose values are objects with `street`. The field must be a **slice** (or pointer to slice). Elements or members that do not contain the rest of the path are **skipped** with no error and no placeholder entry.
+
+## Multi-field selection (`[key,key,...]`)
+
+A bracket segment lists several object keys to read from one object. For **`Unmarshal` into a struct**, the destination must be **`map[string]T`** (string keys). Slice and fixed-array destinations for multi-field tags are **not** supported.
+
+- `jsonr:"address.[street,city,state]"` — Reads only `street`, `city`, and `state` from `address` into a map, e.g. `map[string]string` with keys `"street"`, `"city"`, `"state"`.
+
+Bracket segments name **keys only**; slice-range syntax such as `addresses.[0:5]` is **not** supported.
+
+## `Inline` / `InlineDecode`
+
+Path syntax matches struct tags. Additional rules:
+
+- A multi-field bracket segment must be the **last** segment (e.g. `x.y.*.[a,b]` into `[]map[string]T`).
+- Wildcard paths need a slice destination; multi-field paths need `map[string]T` for the selected value type.
+
+## Brief example
+
+Only the name and coordinates matter; the rest of the document can be skipped by the decoder.
 
 ### Example JSON
 
@@ -43,13 +63,13 @@ In this example there is a json object representing an **Employee** that include
 }
 ```
 
-### Traditional Structure
+### Traditional nested structs
 
-Here would be the traditional method for parsing the json to a struct to get the name and coordinates only. (could be included using nested structs in one declaration)
+Nested structs (possibly declared inline) mirror the JSON shape:
 
 ```go
 type Employee struct {
-	Name string `json:"name"`
+	Name    string  `json:"name"`
 	Address Address `json:"address"`
 }
 
@@ -58,54 +78,42 @@ type Address struct {
 }
 
 type Coordinates struct {
-	Latitude float64 `json:"latitude"`
+	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
 }
 ```
 
-### New Structure
+### Flat paths (scalars)
+
+One struct with `jsonr` paths avoids intermediate types for leaf values:
 
 ```go
 type EmployeeCoordinates struct {
-	Name string `jsonr:"name"`
-	Latitude float64 `jsonr:"address.coordinates.latitude"`
+	Name      string  `jsonr:"name"`
+	Latitude  float64 `jsonr:"address.coordinates.latitude"`
 	Longitude float64 `jsonr:"address.coordinates.longitude"`
 }
-
-var result = EmployeeCoordinates{
-    Name: "John Doe",
-    Latitude: 37.774929,
-    Longitude: -122.419416,
-}
 ```
 
-OR
+### Multi-field into a map
+
+Pick several keys under `coordinates` into one map:
 
 ```go
 type EmployeeCoordinates struct {
-	Name string `jsonr:"name"`
-    Coordinates map[string]float64 `jsonr:"address.coordinates.[latitude,longitude]"`
-}
-
-var result = EmployeeCoordinates{
-    Name: "John Doe",
-    Coordinates: map[string]float64{
-        "latitude": 37.774929,
-        "longitude": -122.419416,
-    },
+	Name         string             `jsonr:"name"`
+	Coordinates  map[string]float64 `jsonr:"address.coordinates.[latitude,longitude]"`
 }
 ```
 
-OR
+Equivalent populated values:
 
 ```go
-type EmployeeCoordinates struct {
-	Name string `jsonr:"name"`
-    Coordinates [2]float64 `jsonr:"address.coordinates.[latitude,longitude]"`
-}
-
 var result = EmployeeCoordinates{
-    Name: "John Doe",
-    Coordinates: [2]float64{ 37.774929, -122.419416 },
+	Name: "John Doe",
+	Coordinates: map[string]float64{
+		"latitude":  37.774929,
+		"longitude": -122.419416,
+	},
 }
 ```
